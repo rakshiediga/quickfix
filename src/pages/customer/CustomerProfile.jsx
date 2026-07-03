@@ -27,30 +27,30 @@ export default function CustomerProfile() {
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-primary)' }}>
       {/* Profile header */}
-      <div style={{ background: 'var(--gradient-dark)', padding: '48px 20px 32px', borderBottom: '1px solid var(--border-light)', position: 'relative', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', top: -40, right: -40, width: 180, height: 180, borderRadius: '50%', background: 'rgba(124,58,237,0.1)' }} />
+      <div style={{ background: 'var(--gradient-primary)', padding: '48px 20px 32px', borderBottom: '1px solid var(--border-light)', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: -40, right: -40, width: 180, height: 180, borderRadius: '50%', background: 'rgba(255,255,255,0.15)' }} />
         <div style={{ display: 'flex', gap: 16, alignItems: 'center', position: 'relative', zIndex: 1 }}>
-          <div className="avatar avatar--xl" style={{ background: 'var(--gradient-primary)', color: '#fff', fontSize: 32, fontWeight: 800 }}>
+          <div className="avatar avatar--xl" style={{ background: '#FFFFFF', color: 'var(--brand-primary)', fontSize: 32, fontWeight: 800 }}>
             {profile?.full_name?.[0] || '?'}
           </div>
           <div>
-            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 800, marginBottom: 4 }}>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 800, marginBottom: 4, color: '#FFFFFF' }}>
               {profile?.full_name || 'Customer'}
             </h1>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-secondary)', fontSize: 13 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>
               <Phone size={13} />
               <span>{profile?.phone || '+91 98765 43210'}</span>
             </div>
-            <span className="badge badge--verified" style={{ marginTop: 6 }}>✓ Verified</span>
+            <span className="badge badge--verified" style={{ marginTop: 6, background: '#FFFFFF', color: 'var(--brand-primary)', border: 'none' }}>✓ Verified</span>
           </div>
         </div>
 
         {/* Stats */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginTop: 20, position: 'relative', zIndex: 1 }}>
           {[{ label: 'Bookings', value: '12' }, { label: 'Reviews', value: '8' }, { label: 'Saved', value: '5' }].map(s => (
-            <div key={s.label} style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 'var(--radius-md)', padding: '10px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.08)' }}>
-              <div style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 800 }}>{s.value}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{s.label}</div>
+            <div key={s.label} style={{ background: 'rgba(255,255,255,0.2)', borderRadius: 'var(--radius-md)', padding: '10px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.1)' }}>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 800, color: '#FFFFFF' }}>{s.value}</div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)', marginTop: 2 }}>{s.label}</div>
             </div>
           ))}
         </div>
@@ -61,7 +61,7 @@ export default function CustomerProfile() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24 }}>
           {menuItems.map(item => (
             <button key={item.label} onClick={item.action} className="list-item">
-              <div className="list-item__icon" style={{ background: 'rgba(124,58,237,0.1)', color: 'var(--brand-primary-light)' }}>
+              <div className="list-item__icon" style={{ background: 'rgba(255,87,34,0.1)', color: 'var(--brand-primary)' }}>
                 {item.icon}
               </div>
               <div className="list-item__content">

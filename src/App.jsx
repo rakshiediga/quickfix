@@ -9,6 +9,7 @@ import LoginPage from './pages/auth/LoginPage';
 import OtpPage from './pages/auth/OtpPage';
 import RoleSelectPage from './pages/auth/RoleSelectPage';
 import ProviderSetupPage from './pages/auth/ProviderSetupPage';
+import CustomerSetupPage from './pages/auth/CustomerSetupPage';
 
 // Customer Pages
 import CustomerHome from './pages/customer/CustomerHome';
@@ -20,6 +21,7 @@ import BookingTrackerPage from './pages/customer/BookingTrackerPage';
 import ChatPage from './pages/customer/ChatPage';
 import PaymentPage from './pages/customer/PaymentPage';
 import CustomerProfile from './pages/customer/CustomerProfile';
+import CustomerNotifications from './pages/customer/CustomerNotifications';
 
 // Provider Pages
 import ProviderDashboard from './pages/provider/ProviderDashboard';
@@ -28,6 +30,7 @@ import BookingRequestPage from './pages/provider/BookingRequestPage';
 import ProviderEarnings from './pages/provider/ProviderEarnings';
 import ProviderProfileSetup from './pages/provider/ProviderProfileSetup';
 import ProviderReviews from './pages/provider/ProviderReviews';
+import ProviderNotifications from './pages/provider/ProviderNotifications';
 
 // Admin Pages
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -98,12 +101,14 @@ export default function App() {
           }}
         />
         <Routes>
-          {/* Public / Auth */}
+          {/* Public / Auth — STEP 1: choose role, STEP 2: login, STEP 3: setup */}
           <Route path="/" element={<SplashScreen />} />
+          <Route path="/role-select" element={<PublicRoute><RoleSelectPage /></PublicRoute>} />
           <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
           <Route path="/otp" element={<PublicRoute><OtpPage /></PublicRoute>} />
-          <Route path="/role-select" element={<PublicRoute><RoleSelectPage /></PublicRoute>} />
           <Route path="/provider-setup" element={<ProviderSetupPage />} />
+          <Route path="/customer-setup" element={<CustomerSetupPage />} />
+
 
           {/* Customer */}
           <Route path="/customer" element={<ProtectedRoute allowedRoles={['customer']}><CustomerLayout /></ProtectedRoute>}>
@@ -112,6 +117,7 @@ export default function App() {
             <Route path="search" element={<SearchPage />} />
             <Route path="bookings" element={<CustomerBookings />} />
             <Route path="profile" element={<CustomerProfile />} />
+            <Route path="notifications" element={<CustomerNotifications />} />
           </Route>
           <Route path="/customer/provider/:id" element={<ProtectedRoute allowedRoles={['customer']}><ProviderProfilePage /></ProtectedRoute>} />
           <Route path="/customer/book/:providerId" element={<ProtectedRoute allowedRoles={['customer']}><BookServicePage /></ProtectedRoute>} />
@@ -124,6 +130,7 @@ export default function App() {
             <Route index element={<Navigate to="dashboard" replace />} />
             <Route path="dashboard" element={<ProviderDashboard />} />
             <Route path="bookings" element={<ProviderBookings />} />
+            <Route path="notifications" element={<ProviderNotifications />} />
             <Route path="earnings" element={<ProviderEarnings />} />
             <Route path="profile" element={<ProviderProfileSetup />} />
             <Route path="reviews" element={<ProviderReviews />} />

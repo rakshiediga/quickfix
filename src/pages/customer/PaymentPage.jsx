@@ -40,7 +40,7 @@ export default function PaymentPage() {
       name: 'QuickFix',
       description: `Booking #${bookingId}`,
       prefill: { contact: '9876543210', email: 'customer@quickfix.app' },
-      theme: { color: '#7C3AED' },
+      theme: { color: '#FF5722' },
       handler: () => { setSuccess(true); setLoading(false); },
     };
 
@@ -96,7 +96,7 @@ export default function PaymentPage() {
           {METHODS.map(m => (
             <div key={m.id} onClick={() => setMethod(m.id)} style={{
               padding: '14px 16px', borderRadius: 'var(--radius-md)',
-              background: method === m.id ? 'rgba(124,58,237,0.08)' : 'var(--bg-card)',
+              background: method === m.id ? 'rgba(255,87,34,0.08)' : 'var(--bg-card)',
               border: `1.5px solid ${method === m.id ? 'var(--brand-primary)' : 'var(--border-light)'}`,
               display: 'flex', gap: 12, alignItems: 'center', cursor: 'pointer', transition: 'all 0.2s',
             }}>
@@ -120,12 +120,12 @@ export default function PaymentPage() {
               {UPI_APPS.map(app => (
                 <button key={app.id} onClick={() => { setUpiApp(app.id); setUpiId(''); }} style={{
                   padding: '10px 6px', borderRadius: 'var(--radius-md)', textAlign: 'center',
-                  background: upiApp === app.id ? 'rgba(124,58,237,0.1)' : 'var(--bg-tertiary)',
+                  background: upiApp === app.id ? 'rgba(255,87,34,0.1)' : 'var(--bg-tertiary)',
                   border: `1.5px solid ${upiApp === app.id ? 'var(--brand-primary)' : 'var(--border-light)'}`,
                   cursor: 'pointer', transition: 'all 0.2s',
                 }}>
                   <div style={{ fontSize: 22 }}>{app.icon}</div>
-                  <div style={{ fontSize: 10, marginTop: 4, color: upiApp === app.id ? 'var(--brand-primary-light)' : 'var(--text-muted)', fontWeight: 500 }}>{app.label}</div>
+                  <div style={{ fontSize: 10, marginTop: 4, color: upiApp === app.id ? 'var(--brand-primary)' : 'var(--text-muted)', fontWeight: 500 }}>{app.label}</div>
                 </button>
               ))}
             </div>

@@ -31,11 +31,11 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-primary)' }}>
-      <div style={{ padding: '48px 16px 20px', background: 'var(--gradient-dark)', borderBottom: '1px solid var(--border-light)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ padding: '48px 16px 20px', background: 'var(--gradient-primary)', borderBottom: '1px solid var(--border-light)' }}>
+        <div style={{ display: 'flex', justifycontent: 'space-between', alignitems: 'center' }}>
           <div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 4 }}>Admin Panel</div>
-            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 900 }}>⚡ QuickFix</h1>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 4 }}>Admin Panel</div>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 900, color: '#FFFFFF' }}>⚡ QuickFix</h1>
           </div>
           <div style={{ display: 'flex', gap: 4, alignItems: 'center', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 'var(--radius-full)', padding: '6px 12px' }}>
             <div style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--brand-accent)', animation: 'pulse 2s infinite' }} />
@@ -86,7 +86,7 @@ export default function AdminDashboard() {
               <XAxis dataKey="month" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
               <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: 12, color: 'var(--text-primary)' }} />
-              <Bar dataKey="bookings" fill="#7C3AED" radius={[4,4,0,0]} />
+              <Bar dataKey="bookings" fill="var(--brand-primary)" radius={[4,4,0,0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -97,12 +97,12 @@ export default function AdminDashboard() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {RECENT_ACTIONS.map((a, i) => (
               <div key={i} className="card" style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '12px 14px' }}>
-                <div style={{ width: 36, height: 36, borderRadius: 'var(--radius-md)', background: a.type === 'alert' ? 'rgba(239,68,68,0.1)' : 'rgba(124,58,237,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 'var(--radius-md)', background: a.type === 'alert' ? 'rgba(239,68,68,0.1)' : 'rgba(255,87,34,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>
                   {a.type === 'provider' ? '👷' : a.type === 'booking' ? '📋' : a.type === 'verify' ? '✅' : a.type === 'alert' ? '⚠️' : '👤'}
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, fontWeight: 500 }}>{a.action}</div>
-                  <div style={{ fontSize: 12, color: 'var(--brand-primary-light)', fontWeight: 600 }}>{a.name}</div>
+                  <div style={{ fontSize: 12, color: 'var(--brand-primary)', fontWeight: 600 }}>{a.name}</div>
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{a.time}</div>
               </div>

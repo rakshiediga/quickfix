@@ -1,150 +1,244 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, MapPin, Phone, MessageCircle, Clock, CheckCircle, Navigation } from 'lucide-react';
+import { ArrowLeft, MapPin, Phone, MessageCircle, CheckCircle, XCircle, Clock, Loader, Navigation } from 'lucide-react';
+import { getBookingById, updateBookingStatus, getProviderById } from '../../lib/db';
+import useAuthStore from '../../store/authStore';
 import toast from 'react-hot-toast';
 
-const MOCK = {
-  BK101: { customer: 'Priya M.', avatar: '👩', phone: '+91 98765 43210', address: '123, 4th Cross, Koramangala, Bengaluru - 560034', service: 'Plumbing Repair', desc: 'Bathroom sink is leaking badly. Need immediate repair.', amount: 385, time: '10:30 AM', date: '19 Jun 2026', status: 'pending' },
-  BK102: { customer: 'Arjun K.', avatar: '👨', phone: '+91 87654 32109', address: '45, 2nd Main, HSR Layout, Bengaluru - 560102', service: 'Pipe Leak Fix', desc: 'Kitchen pipe is leaking under the sink.', amount: 450, time: '2:00 PM', date: '19 Jun 2026', status: 'accepted' },
+const STATUS_COLOR = {
+  pending:     { bg: '#FFF3E0', color: '#E65100', label: '🔔 New Request' },
+  accepted:    { bg: '#E8F5E9', color: '#2E7D32', label: '✅ Accepted' },
+  in_progress: { bg: '#E3F2FD', color: '#1565C0', label: '🔧 In Progress' },
+  completed:   { bg: '#F3E5F5', color: '#6A1B9A', label: '🎉 Completed' },
+  cancelled:   { bg: '#FFEBEE', color: '#C62828', label: '❌ Cancelled' },
 };
 
 export default function BookingRequestPage() {
   const { bookingId } = useParams();
   const navigate = useNavigate();
-  const booking = MOCK[bookingId] || MOCK['BK101'];
-  const [status, setStatus] = useState(booking.status);
-  const [loading, setLoading] = useState(false);
+  const { profile } = useAuthStore();
+
+  const [booking, setBooking] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const load = async () => {
+    const data = await getBookingById(bookingId);
+    setBooking(data);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, [bookingId]);
 
   const handleAccept = async () => {
-    setLoading(true);
-    await new Promise(r => setTimeout(r, 600));
-    setStatus('accepted');
-    toast.success('Booking accepted! Head to customer location.');
-    setLoading(false);
+    setActionLoading(true);
+    const updated = await updateBookingStatus(bookingId, 'accepted');
+    if (updated) {
+      setBooking(updated);
+      toast.success('✅ Booking accepted! Customer has been notified.');
+    } else {
+      toast.error('Failed to accept booking');
+    }
+    setActionLoading(false);
   };
 
   const handleReject = async () => {
-    setLoading(true);
-    await new Promise(r => setTimeout(r, 400));
-    setStatus('rejected');
-    toast('Booking rejected.', { icon: '❌' });
-    setLoading(false);
-    setTimeout(() => navigate(-1), 1000);
+    setActionLoading(true);
+    const updated = await updateBookingStatus(bookingId, 'cancelled');
+    if (updated) {
+      setBooking(updated);
+      toast.error('Booking declined. Customer notified.');
+    }
+    setActionLoading(false);
+  };
+
+  const handleStart = async () => {
+    setActionLoading(true);
+    const updated = await updateBookingStatus(bookingId, 'in_progress');
+    if (updated) {
+      setBooking(updated);
+      toast.success('🔧 Service started!');
+    }
+    setActionLoading(false);
   };
 
   const handleComplete = async () => {
-    setLoading(true);
-    await new Promise(r => setTimeout(r, 600));
-    setStatus('completed');
-    toast.success('Job marked as completed! 🎉');
-    setLoading(false);
+    setActionLoading(true);
+    const updated = await updateBookingStatus(bookingId, 'completed', { completed_at: new Date().toISOString() });
+    if (updated) {
+      setBooking(updated);
+      toast.success('🎉 Service completed! Customer will be asked to review.');
+    }
+    setActionLoading(false);
   };
+
+  if (loading) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
+        <Loader size={32} color="#1A73E8" style={{ animation: 'spin 1s linear infinite' }} />
+        <p style={{ color: '#9E9E9E', fontSize: 14 }}>Loading booking details…</p>
+      </div>
+    );
+  }
+
+  if (!booking) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, textAlign: 'center' }}>
+        <div style={{ fontSize: 56, marginBottom: 16 }}>⚠️</div>
+        <h2 style={{ fontWeight: 800, marginBottom: 8 }}>Booking not found</h2>
+        <button onClick={() => navigate('/provider/bookings')} style={{ padding: '12px 24px', borderRadius: 10, background: '#1A73E8', color: '#fff', border: 'none', fontWeight: 700, cursor: 'pointer' }}>Back to Bookings</button>
+      </div>
+    );
+  }
+
+  const statusStyle = STATUS_COLOR[booking.status] || STATUS_COLOR.pending;
+  const customerName = booking.customer?.full_name || booking.customer_name || 'Customer';
+  const customerPhone = booking.customer?.phone || booking.customer_phone || '';
+  const scheduledDate = booking.scheduled_at
+    ? new Date(booking.scheduled_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : 'Instant';
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-primary)' }}>
+      {/* Header */}
       <div className="header">
-        <button className="header__back" onClick={() => navigate(-1)}><ArrowLeft size={18} /></button>
-        <h1 className="header__title">Booking Details</h1>
-        <span className={`badge badge--${status.replace('_','-')}`}>{status.charAt(0).toUpperCase() + status.slice(1)}</span>
+        <button className="header__back" onClick={() => navigate('/provider/bookings')}><ArrowLeft size={18} /></button>
+        <h1 className="header__title">Booking #{booking.id?.slice(-6)}</h1>
       </div>
 
-      <div style={{ padding: 16, paddingBottom: 100 }}>
+      <div style={{ padding: '16px 16px 120px' }}>
+
+        {/* Status banner */}
+        <div style={{
+          background: statusStyle.bg, borderRadius: 16, padding: '14px 18px',
+          display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20,
+          border: `1.5px solid ${statusStyle.color}22`,
+        }}>
+          <div style={{ fontSize: 24 }}>{statusStyle.label.split(' ')[0]}</div>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 15, color: statusStyle.color }}>{statusStyle.label.slice(2)}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+              Updated: {new Date(booking.updated_at || booking.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+            </div>
+          </div>
+        </div>
+
         {/* Customer info */}
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div style={{ display: 'flex', gap: 14, alignItems: 'center', marginBottom: 16 }}>
-            <div className="avatar avatar--lg" style={{ background: 'var(--bg-tertiary)', fontSize: 26 }}>{booking.avatar}</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 700, fontSize: 17, fontFamily: 'var(--font-display)' }}>{booking.customer}</div>
-              <div style={{ color: 'var(--brand-primary-light)', fontSize: 13, fontWeight: 500 }}>{booking.service}</div>
-              <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 2 }}>📅 {booking.date} • 🕐 {booking.time}</div>
+        <div className="card" style={{ marginBottom: 14 }}>
+          <h4 style={{ fontWeight: 700, marginBottom: 12 }}>👤 Customer</h4>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 14 }}>
+            <div style={{ width: 52, height: 52, borderRadius: 14, background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 700, color: '#1A73E8', overflow: 'hidden', flexShrink: 0 }}>
+              {booking.customer?.avatar_url
+                ? <img src={booking.customer.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : customerName[0]?.toUpperCase() || '👤'}
             </div>
-            <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 800, color: 'var(--brand-accent)' }}>₹{booking.amount}</div>
-          </div>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button className="btn btn--secondary btn--sm" style={{ flex: 1 }} onClick={() => navigate(`/customer/chat/${bookingId}`)}>
-              <MessageCircle size={15} /> Chat
-            </button>
-            <button className="btn btn--secondary btn--sm" style={{ flex: 1 }} onClick={() => window.open(`tel:${booking.phone}`)}>
-              <Phone size={15} /> Call
-            </button>
-          </div>
-        </div>
-
-        {/* Service address */}
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 12 }}>
-            <MapPin size={18} color="var(--brand-primary-light)" style={{ flexShrink: 0, marginTop: 2 }} />
             <div>
-              <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>Service Location</div>
-              <div style={{ color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.5 }}>{booking.address}</div>
+              <div style={{ fontWeight: 800, fontSize: 15 }}>{customerName}</div>
+              {customerPhone && <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>{customerPhone}</div>}
             </div>
           </div>
-          <button className="btn btn--outline btn--sm btn--full">
-            <Navigation size={15} /> Navigate on Maps
-          </button>
-        </div>
-
-        {/* Description */}
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8 }}>Issue Description</div>
-          <p style={{ color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.6 }}>{booking.desc}</p>
-        </div>
-
-        {/* Map */}
-        <div className="map-container" style={{ marginBottom: 16, height: 180 }}>
-          <div className="map-placeholder">
-            <div style={{ fontSize: 28 }}>📍</div>
-            <p style={{ fontSize: 12 }}>Customer location on map</p>
-          </div>
-          <div style={{ position: 'absolute', top: '40%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: 2 }}>
-            <div style={{ background: 'var(--brand-danger)', color: '#fff', borderRadius: 'var(--radius-full)', padding: '6px 14px', fontSize: 12, fontWeight: 700, boxShadow: 'var(--shadow-brand)' }}>
-              📍 {booking.customer}
+          {customerPhone && (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <a href={`tel:${customerPhone}`} style={{ flex: 1, padding: '10px 0', borderRadius: 10, background: 'rgba(33,150,243,0.08)', color: '#2196F3', border: '1px solid rgba(33,150,243,0.2)', fontWeight: 700, fontSize: 13, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <Phone size={14} /> Call Customer
+              </a>
+              <button onClick={() => navigate(`/customer/chat/${bookingId}`)} style={{ flex: 1, padding: '10px 0', borderRadius: 10, background: 'rgba(76,175,80,0.08)', color: '#4CAF50', border: '1px solid rgba(76,175,80,0.2)', fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <MessageCircle size={14} /> Chat
+              </button>
             </div>
-          </div>
+          )}
         </div>
 
-        {/* Price breakdown */}
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div style={{ fontWeight: 600, marginBottom: 12 }}>Earnings Breakdown</div>
+        {/* Booking details */}
+        <div className="card" style={{ marginBottom: 14 }}>
+          <h4 style={{ fontWeight: 700, marginBottom: 12 }}>📋 Booking Details</h4>
           {[
-            { label: 'Service Amount', value: `₹${booking.amount}` },
-            { label: 'Commission (15%)', value: `-₹${Math.round(booking.amount * 0.15)}` },
-            { label: 'Your Earnings', value: `₹${Math.round(booking.amount * 0.85)}`, bold: true },
-          ].map(r => (
-            <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: r.bold ? 'none' : '1px solid var(--border-light)' }}>
-              <span style={{ color: r.bold ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: r.bold ? 700 : 400, fontSize: 14 }}>{r.label}</span>
-              <span style={{ fontWeight: r.bold ? 800 : 500, color: r.bold ? 'var(--brand-accent)' : r.value.startsWith('-') ? 'var(--brand-danger)' : 'var(--text-primary)', fontFamily: r.bold ? 'var(--font-display)' : 'inherit', fontSize: r.bold ? 16 : 14 }}>{r.value}</span>
+            { label: 'Service', value: booking.service_name, capitalize: true },
+            { label: 'Scheduled', value: scheduledDate },
+            { label: 'Amount', value: booking.amount ? `₹${booking.amount}` : '—' },
+          ].map(item => (
+            <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid var(--border-light)' }}>
+              <span style={{ color: 'var(--text-secondary)', fontSize: 13 }}>{item.label}</span>
+              <span style={{ fontWeight: 600, fontSize: 13, textTransform: item.capitalize ? 'capitalize' : 'none' }}>{item.value}</span>
             </div>
           ))}
         </div>
 
-        {status === 'completed' && (
-          <div className="card" style={{ background: 'rgba(16,185,129,0.06)', borderColor: 'rgba(16,185,129,0.2)', textAlign: 'center', padding: 24 }}>
-            <CheckCircle size={40} color="var(--brand-accent)" style={{ margin: '0 auto 12px' }} />
-            <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--brand-accent)' }}>Job Completed!</div>
-            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>Payment will be processed within 24 hours</div>
+        {/* Address */}
+        {booking.address && (
+          <div className="card" style={{ marginBottom: 14 }}>
+            <h4 style={{ fontWeight: 700, marginBottom: 10 }}>📍 Service Location</h4>
+            <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 12 }}>{booking.address}</p>
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(booking.address)}`}
+              target="_blank" rel="noopener noreferrer"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 10, background: 'linear-gradient(135deg,#1A73E8,#0D47A1)', color: '#fff', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}
+            >
+              <Navigation size={14} /> Get Directions
+            </a>
           </div>
         )}
+
+        {/* Notes */}
+        {booking.notes && (
+          <div className="card" style={{ marginBottom: 14, background: 'rgba(26,115,232,0.04)', borderColor: 'rgba(26,115,232,0.12)' }}>
+            <h4 style={{ fontWeight: 700, marginBottom: 6 }}>📝 Customer Notes</h4>
+            <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{booking.notes}</p>
+          </div>
+        )}
+
       </div>
 
-      {/* Bottom actions */}
-      {status !== 'completed' && status !== 'rejected' && (
-        <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, padding: 16, background: 'var(--bg-secondary)', borderTop: '1px solid var(--border-light)', display: 'flex', gap: 12 }}>
-          {status === 'pending' && (
-            <>
-              <button className="btn btn--danger" style={{ flex: 1 }} onClick={handleReject} disabled={loading}>Reject</button>
-              <button className="btn btn--success" style={{ flex: 2 }} onClick={handleAccept} disabled={loading}>
-                {loading ? <div className="spinner spinner--sm" style={{ borderTopColor: '#fff' }} /> : '✓ Accept Booking'}
-              </button>
-            </>
-          )}
-          {status === 'accepted' && (
-            <button className="btn btn--primary btn--full btn--lg" onClick={handleComplete} disabled={loading}>
-              {loading ? <div className="spinner spinner--sm" style={{ borderTopColor: '#fff' }} /> : '✓ Mark as Completed'}
+      {/* Sticky Action Buttons */}
+      <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, padding: '12px 16px', background: 'var(--bg-secondary)', borderTop: '1px solid var(--border-light)' }}>
+        {booking.status === 'pending' && (
+          <div style={{ display: 'flex', gap: 12 }}>
+            <button
+              onClick={handleReject}
+              disabled={actionLoading}
+              style={{ flex: 1, padding: '14px 0', borderRadius: 12, background: 'rgba(244,67,54,0.08)', color: '#F44336', border: '1.5px solid rgba(244,67,54,0.2)', fontWeight: 700, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+            >
+              <XCircle size={18} /> Reject
             </button>
-          )}
-        </div>
-      )}
+            <button
+              onClick={handleAccept}
+              disabled={actionLoading}
+              style={{ flex: 2, padding: '14px 0', borderRadius: 12, background: 'linear-gradient(135deg,#1A73E8,#0D47A1)', color: '#fff', border: 'none', fontWeight: 700, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 4px 14px rgba(26,115,232,0.4)' }}
+            >
+              {actionLoading ? <Loader size={18} style={{ animation: 'spin 1s linear infinite' }} /> : <><CheckCircle size={18} /> Accept Booking</>}
+            </button>
+          </div>
+        )}
+
+        {booking.status === 'accepted' && (
+          <button
+            onClick={handleStart}
+            disabled={actionLoading}
+            style={{ width: '100%', padding: '14px 0', borderRadius: 12, background: 'linear-gradient(135deg,#FF9800,#F57C00)', color: '#fff', border: 'none', fontWeight: 700, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 4px 14px rgba(255,152,0,0.35)' }}
+          >
+            {actionLoading ? <Loader size={18} style={{ animation: 'spin 1s linear infinite' }} /> : '🔧 Start Service'}
+          </button>
+        )}
+
+        {booking.status === 'in_progress' && (
+          <button
+            onClick={handleComplete}
+            disabled={actionLoading}
+            style={{ width: '100%', padding: '14px 0', borderRadius: 12, background: 'linear-gradient(135deg,#00C853,#1B5E20)', color: '#fff', border: 'none', fontWeight: 700, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 4px 14px rgba(0,200,83,0.35)' }}
+          >
+            {actionLoading ? <Loader size={18} style={{ animation: 'spin 1s linear infinite' }} /> : '✅ Mark as Completed'}
+          </button>
+        )}
+
+        {(booking.status === 'completed' || booking.status === 'cancelled') && (
+          <button
+            onClick={() => navigate('/provider/bookings')}
+            style={{ width: '100%', padding: '14px 0', borderRadius: 12, background: 'var(--bg-tertiary)', color: 'var(--text-primary)', border: 'none', fontWeight: 700, fontSize: 15, cursor: 'pointer' }}
+          >
+            ← Back to All Bookings
+          </button>
+        )}
+      </div>
     </div>
   );
 }

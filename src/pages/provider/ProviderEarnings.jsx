@@ -27,88 +27,139 @@ export default function ProviderEarnings() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-primary)' }}>
-      <div style={{ padding: '48px 16px 20px', background: 'var(--gradient-dark)', borderBottom: '1px solid var(--border-light)' }}>
-        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 800, marginBottom: 4 }}>Earnings</h1>
-        <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Track your income and payouts</p>
+      {/* Header banner */}
+      <div style={{
+        padding: '48px 16px 20px',
+        background: 'linear-gradient(135deg, #1A73E8, #0D47A1)',
+        borderBottom: '1px solid var(--border-light)'
+      }}>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 800, marginBottom: 4, color: '#FFFFFF' }}>
+          Earnings
+        </h1>
+        <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>Track your income and payouts</p>
       </div>
 
       <div style={{ padding: 16 }}>
-        {/* Summary cards */}
+        {/* Summary grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 12, marginBottom: 20 }}>
           {[
-            { label: 'Total Earned', value: '₹42,800', sub: 'All time' },
-            { label: 'This Month', value: '₹8,640', sub: 'June 2026' },
-            { label: 'Pending', value: '₹1,200', sub: 'Processing' },
-            { label: 'Commission', value: '₹6,420', sub: 'Platform fee' },
+            { label: 'Total Earned', value: '₹42,800', sub: 'All time', color: '#1A73E8' },
+            { label: 'This Month', value: '₹8,640', sub: 'June 2026', color: '#0D47A1' },
+            { label: 'Pending Payout', value: '₹1,200', sub: 'Processing', color: '#1976D2' },
+            { label: 'Commission Fee', value: '₹6,420', sub: 'Platform fee (15%)', color: '#F44336' },
           ].map(s => (
-            <div key={s.label} className="stat-card">
-              <div className="stat-card__value" style={{ fontSize: 20 }}>{s.value}</div>
-              <div className="stat-card__label">{s.label}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{s.sub}</div>
+            <div key={s.label} className="stat-card" style={{ padding: 12 }}>
+              <div className="stat-card__value" style={{ fontSize: 18, fontWeight: 800 }}>{s.value}</div>
+              <div className="stat-card__label" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{s.label}</div>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{s.sub}</div>
             </div>
           ))}
         </div>
 
-        {/* Period toggle */}
-        <div className="tab-bar" style={{ marginBottom: 16 }}>
-          {['weekly','monthly'].map(p => (
-            <div key={p} className={`tab-item ${period === p ? 'active' : ''}`} onClick={() => setPeriod(p)}>
-              {p.charAt(0).toUpperCase() + p.slice(1)}
-            </div>
-          ))}
+        {/* Period toggle tab bar */}
+        <div className="tab-bar" style={{
+          marginBottom: 16,
+          background: 'var(--bg-tertiary)',
+          borderRadius: 12,
+          display: 'flex',
+          padding: 4
+        }}>
+          {['weekly', 'monthly'].map(p => {
+            const active = period === p;
+            return (
+              <div
+                key={p}
+                className={`tab-item ${active ? 'active' : ''}`}
+                onClick={() => setPeriod(p)}
+                style={{
+                  flex: 1,
+                  textAlign: 'center',
+                  padding: '8px 0',
+                  borderRadius: 10,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  background: active ? 'var(--bg-card)' : 'transparent',
+                  color: active ? '#1A73E8' : 'var(--text-muted)',
+                  boxShadow: active ? '0 2px 6px rgba(0,0,0,0.06)' : 'none'
+                }}
+              >
+                {p.charAt(0).toUpperCase() + p.slice(1)}
+              </div>
+            );
+          })}
         </div>
 
-        {/* Chart */}
-        <div className="chart-area" style={{ marginBottom: 20 }}>
+        {/* Chart Card */}
+        <div className="chart-area" style={{
+          marginBottom: 20,
+          background: 'var(--bg-card)',
+          borderRadius: 16,
+          padding: 16,
+          boxShadow: 'var(--shadow-sm)',
+          border: '1px solid var(--border-light)'
+        }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
             <div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 {period === 'weekly' ? 'This Week' : 'This Month'}
               </div>
-              <div style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 800, background: 'var(--gradient-primary)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+              <div style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: 26,
+                fontWeight: 900,
+                background: 'linear-gradient(135deg, #1A73E8, #0D47A1)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent'
+              }}>
                 ₹{total.toLocaleString()}
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(16,185,129,0.1)', borderRadius: 'var(--radius-full)', padding: '4px 10px' }}>
-              <span style={{ color: 'var(--brand-accent)', fontSize: 12, fontWeight: 700 }}>↑ 12%</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(0,200,83,0.1)', borderRadius: 100, padding: '4px 10px' }}>
+              <span style={{ color: '#00C853', fontSize: 11, fontWeight: 700 }}>↑ 12%</span>
             </div>
           </div>
+          
           <ResponsiveContainer width="100%" height={160}>
-            <AreaChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+            <AreaChart data={data} margin={{ top: 4, right: 4, left: -22, bottom: 0 }}>
               <defs>
                 <linearGradient id="earningsGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#7C3AED" stopOpacity={0.4} />
-                  <stop offset="95%" stopColor="#7C3AED" stopOpacity={0} />
+                  <stop offset="5%" stopColor="#1A73E8" stopOpacity={0.4} />
+                  <stop offset="95%" stopColor="#1A73E8" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-              <XAxis dataKey={key} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.03)" />
+              <XAxis dataKey={key} tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 9 }} axisLine={false} tickLine={false} />
               <Tooltip
                 contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 8, color: 'var(--text-primary)', fontSize: 13 }}
                 formatter={(v) => [`₹${v}`, 'Earnings']}
               />
-              <Area type="monotone" dataKey="earnings" stroke="#7C3AED" strokeWidth={2.5} fill="url(#earningsGrad)" dot={{ fill: '#7C3AED', r: 3 }} activeDot={{ r: 5, fill: '#A78BFA' }} />
+              <Area type="monotone" dataKey="earnings" stroke="#1A73E8" strokeWidth={2.5} fill="url(#earningsGrad)" dot={{ fill: '#1A73E8', r: 3 }} activeDot={{ r: 5, fill: '#0D47A1' }} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
 
-        {/* Transaction history */}
+        {/* Transactions List */}
         <div>
-          <h3 className="section-title" style={{ marginBottom: 12 }}>Recent Payouts</h3>
+          <h3 className="section-title" style={{ fontSize: 16, fontWeight: 800, marginBottom: 12 }}>Recent Payouts</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {TRANSACTIONS.map(t => (
-              <div key={t.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div key={t.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRadius: 14, padding: '12px 14px' }}>
                 <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', background: 'rgba(16,185,129,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>💰</div>
+                  <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(0,200,83,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>
+                    💰
+                  </div>
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: 14 }}>{t.service}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t.customer} • {t.date}</div>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-primary)' }}>{t.service}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t.customer} • {t.date}</div>
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, color: 'var(--brand-accent)', fontSize: 15 }}>+₹{t.amount}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>#{t.id}</div>
+                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, color: '#00C853', fontSize: 14 }}>
+                    +₹{t.amount}
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>#{t.id}</div>
                 </div>
               </div>
             ))}

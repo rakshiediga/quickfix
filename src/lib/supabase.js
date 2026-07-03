@@ -1,19 +1,28 @@
-import { createClient } from '@supabase/supabase-js';
+/**
+ * supabase.js — STUB (Supabase replaced by FastAPI + MySQL)
+ * This file is kept as a stub so that any lingering references do not
+ * crash. All actual data operations now go through src/lib/api.js
+ */
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+export const supabase = {
   auth: {
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: false,
+    getSession: async () => ({ data: { session: null }, error: null }),
+    onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+    signInWithOtp: async () => ({ data: null, error: new Error('Supabase replaced by FastAPI') }),
+    verifyOtp: async () => ({ data: null, error: new Error('Supabase replaced by FastAPI') }),
+    signInWithPassword: async () => ({ data: null, error: new Error('Supabase replaced by FastAPI') }),
+    signUp: async () => ({ data: null, error: new Error('Supabase replaced by FastAPI') }),
+    signOut: async () => ({ error: null }),
   },
-  realtime: {
-    params: {
-      eventsPerSecond: 10,
-    },
-  },
-});
-
-export default supabase;
+  from: () => ({
+    select: () => ({ eq: () => ({ single: async () => ({ data: null, error: null }) }) }),
+    upsert: () => ({ select: () => ({ single: async () => ({ data: null, error: null }) }) }),
+    insert: () => ({ select: () => ({ single: async () => ({ data: null, error: null }) }) }),
+    update: () => ({ eq: () => ({ select: async () => ({ data: null, error: null }) }) }),
+  }),
+  channel: () => ({
+    on: () => ({ subscribe: () => {} }),
+    subscribe: () => {},
+    unsubscribe: () => {},
+  }),
+};

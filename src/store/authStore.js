@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { supabase } from '../lib/supabase';
+import { api } from '../lib/api';
 
 const useAuthStore = create(
   persist(
@@ -17,48 +17,46 @@ const useAuthStore = create(
 
       initialize: async () => {
         set({ isLoading: true });
-        try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.user) {
-            set({ user: session.user, isAuthenticated: true });
-            await get().fetchProfile(session.user.id);
+        const token = localStorage.getItem('quickfix_token');
+        if (token) {
+          try {
+            const user = await api.get('/auth/profile');
+            if (user) {
+              set({ user, isAuthenticated: true });
+              await get().fetchProfile(user.id);
+            } else {
+              get().signOut();
+            }
+          } catch (e) {
+            console.warn('Authentication token invalid or expired. Signing out.');
+            get().signOut();
           }
-        } catch (e) {
-          // Supabase not configured — demo mode
-          console.warn('Supabase not configured. Running in demo mode.');
+        } else {
+          set({ user: null, profile: null, role: null, isAuthenticated: false });
         }
         set({ isLoading: false });
-
-        // Listen for auth changes
-        supabase.auth.onAuthStateChange(async (_event, session) => {
-          if (session?.user) {
-            set({ user: session.user, isAuthenticated: true });
-            await get().fetchProfile(session.user.id);
-          } else {
-            set({ user: null, profile: null, role: null, isAuthenticated: false });
-          }
-        });
       },
 
       fetchProfile: async (userId) => {
+        if (!userId) return null;
         try {
-          const { data } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', userId)
-            .single();
+          const role = get().role || 'customer';
+          const endpoint = role === 'provider' ? '/provider/profile' : '/customer/profile';
+          const data = await api.get(endpoint);
           if (data) {
-            set({ profile: data, role: data.role });
-            return data;
+            // Unify response role for standard store mapping
+            const unified = { ...data, id: data.user_id, role: get().role };
+            set({ profile: unified });
+            return unified;
           }
         } catch (e) {
-          console.warn('Profile fetch skipped — demo mode');
+          console.warn('Profile fetch error from backend:', e);
         }
         return null;
       },
 
       signOut: async () => {
-        try { await supabase.auth.signOut(); } catch (e) {}
+        localStorage.removeItem('quickfix_token');
         set({ user: null, profile: null, role: null, isAuthenticated: false });
       },
     }),
@@ -75,3 +73,4 @@ const useAuthStore = create(
 );
 
 export default useAuthStore;
+

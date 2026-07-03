@@ -1,0 +1,5 @@
+{
+  "appId": "com.quickfix.app",
+  "appName": "QuickFix",
+  "webDir": "dist"
+}

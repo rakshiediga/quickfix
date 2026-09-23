@@ -3,12 +3,53 @@
  * Gateway path: http://localhost:8000/api/v1
  */
 
-const getBaseUrl = () => {
+export const getBaseUrl = () => {
   const customIp = localStorage.getItem('quickfix_custom_api_ip');
-  if (customIp) {
-    return `http://${customIp}:8000/api/v1`;
+  if (customIp && !customIp.includes('localhost') && !customIp.includes('127.0.0.1') && !customIp.startsWith('192.168.') && !customIp.includes('loca.lt')) {
+    if (customIp.startsWith('http://') || customIp.startsWith('https://')) {
+      const clean = customIp.replace(/\/+$/, '');
+      return clean.endsWith('/api/v1') ? clean : `${clean}/api/v1`;
+    }
+    return `https://${customIp}/api/v1`;
   }
-  return 'http://localhost:8000/api/v1';
+
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl) {
+    const clean = envUrl.trim().replace(/\/+$/, '');
+    return clean.endsWith('/api/v1') ? clean : `${clean}/api/v1`;
+  }
+
+  return 'https://quickfix-ebly.onrender.com/api/v1';
+};
+
+export const getWsUrl = () => {
+  const customIp = localStorage.getItem('quickfix_custom_api_ip');
+  if (customIp && !customIp.includes('localhost') && !customIp.includes('127.0.0.1') && !customIp.startsWith('192.168.') && !customIp.includes('loca.lt')) {
+    if (customIp.startsWith('ws://') || customIp.startsWith('wss://')) {
+      return customIp.replace(/\/+$/, '') + '/ws';
+    }
+    return `wss://${customIp}/ws`;
+  }
+
+  const envWs = import.meta.env.VITE_WS_URL;
+  if (envWs) {
+    const clean = envWs.trim().replace(/\/+$/, '');
+    return clean.endsWith('/ws') ? clean : `${clean}/ws`;
+  }
+
+  // Derive from VITE_API_URL if available
+  const envApi = import.meta.env.VITE_API_URL;
+  if (envApi) {
+    const withoutApi = envApi.trim().replace(/\/+$/, '').replace(/\/api\/v1\/?$/, '');
+    if (withoutApi.startsWith('https://')) {
+      return `${withoutApi.replace('https://', 'wss://')}/ws`;
+    }
+    if (withoutApi.startsWith('http://')) {
+      return `${withoutApi.replace('http://', 'ws://')}/ws`;
+    }
+  }
+
+  return 'wss://quickfix-ebly.onrender.com/ws';
 };
 
 const BASE_URL = getBaseUrl();
@@ -34,7 +75,7 @@ const safeFetch = async (url, options) => {
     return res.json();
   } catch (err) {
     if (err.message === 'Failed to fetch' || err.name === 'TypeError') {
-      throw new Error('⚠️ Backend server is not running. Please start the FastAPI server first:\n\ncd backend\nuvicorn app.main:app --reload --port 8000');
+      throw new Error('⚠️ Cannot connect to backend (https://quickfix-ebly.onrender.com). Please check your network connection.', { cause: err });
     }
     throw err;
   }
@@ -76,7 +117,7 @@ export const api = {
     const formData = new FormData();
     formData.append('file', file);
     const token = localStorage.getItem('quickfix_token');
-    const headers = {};
+    const headers = { 'bypass-tunnel-reminder': '1' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
     return safeFetch(`${BASE_URL}/provider/upload`, {
       method: 'POST',

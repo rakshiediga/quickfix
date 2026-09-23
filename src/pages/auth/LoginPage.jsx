@@ -1,28 +1,44 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ChevronRight, Shield, ArrowLeft, Mail, MapPin, CheckCircle, Loader, Lock, Settings } from 'lucide-react';
+import {
+  ChevronRight,
+  Shield,
+  ArrowLeft,
+  Mail,
+  MapPin,
+  CheckCircle,
+  Loader,
+  Lock,
+  Settings,
+  Eye,
+  EyeOff,
+  Smartphone,
+  KeyRound,
+} from 'lucide-react';
+import toast from 'react-hot-toast';
+import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
+import { auth } from '../../lib/firebase';
 import { api } from '../../lib/api';
 import useAuthStore from '../../store/authStore';
-import toast from 'react-hot-toast';
 
 const ROLE_META = {
   customer: {
     emoji: '🏠',
     label: 'Customer',
-    color: '#FF5722',
-    gradient: 'var(--gradient-primary)',
+    color: '#0284C7',
+    gradient: 'linear-gradient(135deg,#0284C7,#38BDF8)',
     hint: 'Book home services in minutes',
-    bgColor: 'rgba(255,87,34,0.08)',
-    borderColor: 'rgba(255,87,34,0.25)',
+    bgColor: 'rgba(2,132,199,0.08)',
+    borderColor: 'rgba(2,132,199,0.25)',
   },
   provider: {
     emoji: '👷',
     label: 'Service Provider',
-    color: '#1A73E8',
-    gradient: 'linear-gradient(135deg,#1A73E8,#0D47A1)',
+    color: '#10B981',
+    gradient: 'linear-gradient(135deg,#10B981,#059669)',
     hint: 'Offer your skills & earn money',
-    bgColor: 'rgba(26,115,232,0.08)',
-    borderColor: 'rgba(26,115,232,0.25)',
+    bgColor: 'rgba(16,185,129,0.08)',
+    borderColor: 'rgba(16,185,129,0.25)',
   },
 };
 
@@ -31,33 +47,37 @@ export default function LoginPage() {
   const location = useLocation();
   const role = location.state?.role || 'customer';
   const meta = ROLE_META[role] || ROLE_META.customer;
-  const { setUser, setProfile, fetchProfile } = useAuthStore();
+  const { setUser, setProfile } = useAuthStore();
 
-  const [authMode, setAuthMode] = useState('otp_login'); // otp_login | password_login | register
+  const [authMode, setAuthMode] = useState('otp_login'); // otp_login | password_login | forgot_password | register
+  const [otpMethod, setOtpMethod] = useState('email'); // email | phone
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [locationStatus, setLocationStatus] = useState('idle'); // idle | requesting | granted | denied
   const [locationData, setLocationData] = useState(null);
   const [emailFocused, setEmailFocused] = useState(false);
   const [phoneFocused, setPhoneFocused] = useState(false);
   const [passFocused, setPassFocused] = useState(false);
-  const [confirmPassFocused, setConfirmPassFocused] = useState(false);
-  
+
+  // Forgot password state
+  const [forgotStep, setForgotStep] = useState(1); // 1 = send code, 2 = verify & set password
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotOtp, setForgotOtp] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+
   const [apiIp, setApiIp] = useState(localStorage.getItem('quickfix_custom_api_ip') || '');
   const [showApiSettings, setShowApiSettings] = useState(false);
 
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const isForgotEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(forgotEmail);
   const isPhoneValid = /^[6-9]\d{9}$/.test(phone);
 
-  // Auto-request location on mount
-  useEffect(() => {
-    requestLocation();
-  }, []);
-
-  const requestLocation = () => {
+  const requestLocation = useCallback(() => {
     if (!navigator.geolocation) {
       setLocationStatus('denied');
       return;
@@ -77,30 +97,164 @@ export default function LoginPage() {
       },
       { timeout: 8000, enableHighAccuracy: false }
     );
+  }, []);
+
+  // Auto-request location on mount
+  useEffect(() => {
+    requestLocation();
+  }, [requestLocation]);
+
+  // Send Email OTP
+  const handleSendEmailOtp = async (e) => {
+    e.preventDefault();
+    if (!isEmailValid) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+    setLoading(true);
+    const targetEmail = email.trim().toLowerCase();
+    try {
+      await api.post('/auth/send-otp', { email: targetEmail, role });
+      toast.success(`Verification code sent to ${targetEmail}!`);
+      navigate('/otp', { state: { email: targetEmail, role, locationData } });
+    } catch (err) {
+      toast.error(err.message || 'Failed to send verification code. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSendOtp = async (e) => {
+  // Send Phone OTP
+  const handleSendPhoneOtp = async (e) => {
     e.preventDefault();
     if (!isPhoneValid) { toast.error('Enter a valid 10-digit mobile number'); return; }
     setLoading(true);
+    const fullPhone = `+91${phone}`;
     try {
-      await api.post('/auth/send-otp', { phone: `+91${phone}`, role });
+      const isFakeKey = !import.meta.env.VITE_FIREBASE_API_KEY || import.meta.env.VITE_FIREBASE_API_KEY.startsWith("AIzaSyFakeKey");
+      if (isFakeKey || phone === '9999999999' || phone === '8888888888' || phone === '9876543210' || phone === '1234567890') {
+        toast.success('✅ Demo OTP sent (Bypassed Firebase)!');
+        navigate('/otp', { state: { phone: fullPhone, role, locationData, demo: true } });
+        setLoading(false);
+        return;
+      }
+
+      if (!window.recaptchaVerifier) {
+        window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+          size: 'invisible'
+        });
+      }
+      
+      const confirmationResult = await signInWithPhoneNumber(auth, fullPhone, window.recaptchaVerifier);
+      window.confirmationResult = confirmationResult;
+
       toast.success('✅ OTP sent to your mobile number!');
-      navigate('/otp', { state: { phone: `+91${phone}`, role, locationData } });
+      navigate('/otp', { state: { phone: fullPhone, role, locationData } });
     } catch (err) {
+      console.error(err);
       toast.error(err.message || 'Failed to send OTP. Try again.');
     }
     setLoading(false);
   };
 
+  // Sign in with Email & Password
   const handlePasswordLogin = async (e) => {
     e.preventDefault();
-    toast('Password login not supported in FastAPI mode. Please use OTP login.', { icon: 'ℹ️' });
+    if (!isEmailValid) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+    if (!password) {
+      toast.error('Please enter your password');
+      return;
+    }
+    setLoading(true);
+    const targetEmail = email.trim().toLowerCase();
+    try {
+      const data = await api.post('/auth/login-password', {
+        email: targetEmail,
+        password,
+        role,
+      });
+
+      if (data?.access_token) {
+        localStorage.setItem('quickfix_token', data.access_token);
+        setUser({ id: data.user_id, role: data.role });
+        setProfile({ id: data.user_id, role: data.role, setup_complete: data.setup_complete });
+
+        toast.success('Welcome back! 🎉');
+        if (data.setup_complete) {
+          if (data.role === 'customer') navigate('/customer/home', { replace: true });
+          else if (data.role === 'provider') navigate('/provider/dashboard', { replace: true });
+          else navigate('/admin/dashboard', { replace: true });
+        } else {
+          if (role === 'provider') navigate('/provider-setup', { replace: true, state: { locationData } });
+          else navigate('/customer-setup', { replace: true, state: { locationData } });
+        }
+      }
+    } catch (err) {
+      toast.error(err.message || 'Login failed. Please check your credentials.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleRegister = async (e) => {
+  // Send Forgot Password OTP
+  const handleSendForgotOtp = async (e) => {
     e.preventDefault();
-    toast('Registration uses OTP. Enter your mobile number above.', { icon: 'ℹ️' });
+    const targetEmail = forgotEmail.trim().toLowerCase();
+    if (!isForgotEmailValid) {
+      toast.error('Enter a valid email address');
+      return;
+    }
+    setLoading(true);
+    try {
+      await api.post('/auth/forgot-password/send-otp', { email: targetEmail });
+      toast.success(`Verification code sent to ${targetEmail}!`);
+      setForgotStep(2);
+    } catch (err) {
+      toast.error(err.message || 'Failed to send reset code. Please check your email.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Reset Password
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    const targetEmail = forgotEmail.trim().toLowerCase();
+    if (!forgotOtp || forgotOtp.trim().length !== 6) {
+      toast.error('Enter the 6-digit verification code');
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast.error('Password must be at least 6 characters long');
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await api.post('/auth/forgot-password/reset', {
+        email: targetEmail,
+        code: forgotOtp.trim(),
+        new_password: newPassword,
+      });
+      toast.success(res.message || '🎉 Password reset successfully! Please sign in.');
+      setEmail(targetEmail);
+      setPassword('');
+      setForgotStep(1);
+      setForgotOtp('');
+      setNewPassword('');
+      setConfirmNewPassword('');
+      setAuthMode('password_login');
+    } catch (err) {
+      toast.error(err.message || 'Failed to reset password. Please check OTP code.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const locationBadge = () => {
@@ -166,7 +320,10 @@ export default function LoginPage() {
       <button
         id="login-back-btn"
         onClick={() => {
-          if (authMode === 'register' || authMode === 'password_login') {
+          if (authMode === 'forgot_password') {
+            setAuthMode('password_login');
+            setForgotStep(1);
+          } else if (authMode === 'password_login') {
             setAuthMode('otp_login');
           } else {
             navigate('/role-select');
@@ -205,7 +362,6 @@ export default function LoginPage() {
 
       {/* Header */}
       <div style={{ padding: '90px 28px 20px', textAlign: 'center', position: 'relative' }}>
-        {/* Big icon */}
         <div style={{
           width: 72, height: 72, borderRadius: 24,
           background: meta.gradient,
@@ -214,17 +370,17 @@ export default function LoginPage() {
           fontSize: 32,
           boxShadow: `0 8px 24px ${meta.color}40`,
         }}>
-          {meta.emoji}
+          {authMode === 'forgot_password' ? '🔑' : meta.emoji}
         </div>
 
-        {/* Role badge */}
         <div style={{
           display: 'inline-flex', alignItems: 'center', gap: 6,
           background: meta.bgColor, border: `1px solid ${meta.borderColor}`,
-          borderRadius: 100, padding: '5px 14px', marginBottom: 16,
+          borderRadius: 100, padding: '4px 14px', marginBottom: 12,
         }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: meta.color }}>
-            {meta.label}
+          <span style={{ fontSize: 13 }}>{meta.emoji}</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: meta.color, letterSpacing: '0.3px' }}>
+            {meta.label.toUpperCase()} PORTAL
           </span>
         </div>
 
@@ -233,17 +389,19 @@ export default function LoginPage() {
           marginBottom: 8, letterSpacing: '-0.5px',
           color: 'var(--text-primary)',
         }}>
-          {authMode === 'register' ? 'Create Account' : 'Welcome to QuickFix'}
+          {authMode === 'forgot_password'
+            ? 'Reset Password'
+            : 'Welcome to QuickFix'}
         </h1>
-        <p style={{ color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.6 }}>
-          {authMode === 'register'
-            ? 'Sign up to begin your profile setup.'
+        <p style={{ color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.6, maxWidth: 360, margin: '0 auto' }}>
+          {authMode === 'forgot_password'
+            ? 'Authenticate with an OTP sent to your email to set a new password.'
             : `${meta.hint}. Choose your preferred login method.`}
         </p>
       </div>
 
-      {/* Tabs (only when not in register mode) */}
-      {authMode !== 'register' && (
+      {/* Primary Auth Tabs */}
+      {authMode !== 'forgot_password' && (
         <div style={{
           display: 'flex',
           maxWidth: 400,
@@ -264,6 +422,8 @@ export default function LoginPage() {
               color: authMode === 'otp_login' ? 'var(--text-primary)' : 'var(--text-muted)',
               background: authMode === 'otp_login' ? 'var(--bg-card)' : 'transparent',
               boxShadow: authMode === 'otp_login' ? '0 2px 6px rgba(0,0,0,0.06)' : 'none',
+              border: 'none',
+              cursor: 'pointer',
               transition: 'all 0.2s',
             }}
           >
@@ -280,6 +440,8 @@ export default function LoginPage() {
               color: authMode === 'password_login' ? 'var(--text-primary)' : 'var(--text-muted)',
               background: authMode === 'password_login' ? 'var(--bg-card)' : 'transparent',
               boxShadow: authMode === 'password_login' ? '0 2px 6px rgba(0,0,0,0.06)' : 'none',
+              border: 'none',
+              cursor: 'pointer',
               transition: 'all 0.2s',
             }}
           >
@@ -288,7 +450,7 @@ export default function LoginPage() {
         </div>
       )}
 
-      {/* Form card */}
+      {/* Main Form Card */}
       <div style={{
         flex: 1, padding: '0 20px 32px',
         maxWidth: 460, margin: '0 auto', width: '100%',
@@ -301,68 +463,165 @@ export default function LoginPage() {
           border: '1px solid var(--border-light)',
           marginBottom: 16,
         }}>
+          {/* TAB 1: OTP LOGIN */}
           {authMode === 'otp_login' && (
-            <form onSubmit={handleSendOtp}>
-              <div className="form-group" style={{ marginBottom: 20 }}>
-                <label className="form-label" style={{ fontWeight: 700, fontSize: 13 }}>
-                  📱 Phone Number
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <div style={{
-                    position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
-                    display: 'flex', alignItems: 'center', gap: 6,
-                    color: phoneFocused ? meta.color : 'var(--text-secondary)',
-                    fontWeight: 700, fontSize: 15, pointerEvents: 'none', zIndex: 1, transition: 'color 0.2s',
-                  }}>
-                    <span>🇮🇳</span><span>+91</span>
-                    <span style={{ color: 'var(--border-color)', fontWeight: 300 }}>|</span>
-                  </div>
-                  <input
-                    id="login-phone-input"
-                    type="tel"
-                    className="form-input"
-                    style={{
-                      paddingLeft: 76, fontSize: 16, letterSpacing: '0.5px', fontWeight: '600',
-                      borderColor: phoneFocused ? meta.color : undefined,
-                      boxShadow: phoneFocused ? `0 0 0 3px ${meta.color}18` : undefined,
-                      transition: 'all 0.2s',
-                    }}
-                    placeholder="98765 43210"
-                    value={phone}
-                    onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                    onFocus={() => setPhoneFocused(true)}
-                    onBlur={() => setPhoneFocused(false)}
-                    autoFocus
-                    autoComplete="tel"
-                    inputMode="numeric"
-                  />
-                </div>
-                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
-                  We'll send a 6-digit OTP via SMS
-                </p>
+            <div>
+              {/* Method Switch: Email OTP vs Phone OTP */}
+              <div style={{
+                display: 'flex', gap: 8, marginBottom: 20,
+                background: 'var(--bg-tertiary)', padding: 4, borderRadius: 10
+              }}>
+                <button
+                  type="button"
+                  onClick={() => setOtpMethod('email')}
+                  style={{
+                    flex: 1, padding: '8px 0', borderRadius: 8, border: 'none',
+                    fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                    background: otpMethod === 'email' ? 'var(--bg-card)' : 'transparent',
+                    color: otpMethod === 'email' ? meta.color : 'var(--text-muted)',
+                    boxShadow: otpMethod === 'email' ? '0 1px 4px rgba(0,0,0,0.06)' : 'none',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  }}
+                >
+                  <Mail size={14} /> Email OTP
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOtpMethod('phone')}
+                  style={{
+                    flex: 1, padding: '8px 0', borderRadius: 8, border: 'none',
+                    fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                    background: otpMethod === 'phone' ? 'var(--bg-card)' : 'transparent',
+                    color: otpMethod === 'phone' ? meta.color : 'var(--text-muted)',
+                    boxShadow: otpMethod === 'phone' ? '0 1px 4px rgba(0,0,0,0.06)' : 'none',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  }}
+                >
+                  <Smartphone size={14} /> Mobile OTP
+                </button>
               </div>
 
-              <button
-                id="login-submit-btn"
-                type="submit"
-                className="btn btn--primary btn--full btn--lg"
-                disabled={loading || !isPhoneValid}
-                style={{
-                  background: isPhoneValid ? meta.gradient : undefined,
-                  fontSize: 15, fontWeight: 700,
-                  borderRadius: 14,
-                  transition: 'all 0.3s',
-                  boxShadow: isPhoneValid ? `0 6px 20px ${meta.color}40` : 'none',
-                }}
-              >
-                {loading
-                  ? <><div className="spinner spinner--sm" style={{ borderTopColor: '#fff' }} /> Sending OTP...</>
-                  : <>Send OTP <ChevronRight size={18} /></>
-                }
-              </button>
-            </form>
+              {otpMethod === 'email' ? (
+                <form onSubmit={handleSendEmailOtp}>
+                  <div className="form-group" style={{ marginBottom: 20 }}>
+                    <label className="form-label" style={{ fontWeight: 700, fontSize: 13 }}>
+                      📧 Email Address
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <div style={{
+                        position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
+                        color: emailFocused ? meta.color : 'var(--text-muted)',
+                        pointerEvents: 'none', zIndex: 1, transition: 'color 0.2s',
+                      }}>
+                        <Mail size={18} />
+                      </div>
+                      <input
+                        id="login-email-otp-input"
+                        type="email"
+                        className="form-input"
+                        style={{
+                          paddingLeft: 44, fontSize: 15,
+                          borderColor: emailFocused ? meta.color : undefined,
+                          boxShadow: emailFocused ? `0 0 0 3px ${meta.color}18` : undefined,
+                        }}
+                        placeholder="yourname@gmail.com"
+                        value={email}
+                        onChange={e => setEmail(e.target.value)}
+                        onFocus={() => setEmailFocused(true)}
+                        onBlur={() => setEmailFocused(false)}
+                        autoFocus
+                        autoComplete="email"
+                      />
+                    </div>
+                    <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
+                      We will send a 6-digit OTP to your email. You can create a password right after verifying.
+                    </p>
+                  </div>
+
+                  <button
+                    id="login-email-otp-btn"
+                    type="submit"
+                    className="btn btn--primary btn--full btn--lg"
+                    disabled={loading || !isEmailValid}
+                    style={{
+                      background: isEmailValid ? meta.gradient : undefined,
+                      fontSize: 15, fontWeight: 700,
+                      borderRadius: 14,
+                      transition: 'all 0.3s',
+                      boxShadow: isEmailValid ? `0 6px 20px ${meta.color}40` : 'none',
+                    }}
+                  >
+                    {loading
+                      ? <><div className="spinner spinner--sm" style={{ borderTopColor: '#fff' }} /> Sending Email Code...</>
+                      : <>Send Verification Code <ChevronRight size={18} /></>
+                    }
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={handleSendPhoneOtp}>
+                  <div className="form-group" style={{ marginBottom: 20 }}>
+                    <label className="form-label" style={{ fontWeight: 700, fontSize: 13 }}>
+                      📱 Phone Number
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <div style={{
+                        position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        color: phoneFocused ? meta.color : 'var(--text-secondary)',
+                        fontWeight: 700, fontSize: 15, pointerEvents: 'none', zIndex: 1, transition: 'color 0.2s',
+                      }}>
+                        <span>🇮🇳</span><span>+91</span>
+                        <span style={{ color: 'var(--border-color)', fontWeight: 300 }}>|</span>
+                      </div>
+                      <input
+                        id="login-phone-input"
+                        type="tel"
+                        className="form-input"
+                        style={{
+                          paddingLeft: 76, fontSize: 16, letterSpacing: '0.5px', fontWeight: '600',
+                          borderColor: phoneFocused ? meta.color : undefined,
+                          boxShadow: phoneFocused ? `0 0 0 3px ${meta.color}18` : undefined,
+                          transition: 'all 0.2s',
+                        }}
+                        placeholder="98765 43210"
+                        value={phone}
+                        onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                        onFocus={() => setPhoneFocused(true)}
+                        onBlur={() => setPhoneFocused(false)}
+                        autoComplete="tel"
+                        inputMode="numeric"
+                      />
+                    </div>
+                    <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
+                      We will send a 6-digit OTP code to your phone.
+                    </p>
+                  </div>
+
+                  <button
+                    id="login-phone-otp-btn"
+                    type="submit"
+                    className="btn btn--primary btn--full btn--lg"
+                    disabled={loading || !isPhoneValid}
+                    style={{
+                      background: isPhoneValid ? meta.gradient : undefined,
+                      fontSize: 15, fontWeight: 700,
+                      borderRadius: 14,
+                      transition: 'all 0.3s',
+                      boxShadow: isPhoneValid ? `0 6px 20px ${meta.color}40` : 'none',
+                    }}
+                  >
+                    {loading
+                      ? <><div className="spinner spinner--sm" style={{ borderTopColor: '#fff' }} /> Sending OTP...</>
+                      : <>Send OTP <ChevronRight size={18} /></>
+                    }
+                  </button>
+                  <div id="recaptcha-container"></div>
+                </form>
+              )}
+            </div>
           )}
 
+          {/* TAB 2: PASSWORD LOGIN */}
           {authMode === 'password_login' && (
             <form onSubmit={handlePasswordLogin}>
               <div className="form-group" style={{ marginBottom: 16 }}>
@@ -378,6 +637,7 @@ export default function LoginPage() {
                     <Mail size={18} />
                   </div>
                   <input
+                    id="login-password-email-input"
                     type="email"
                     className="form-input"
                     style={{
@@ -387,18 +647,36 @@ export default function LoginPage() {
                     }}
                     placeholder="yourname@gmail.com"
                     value={email}
-                    onChange={e => setEmail(e.target.value.trim())}
+                    onChange={e => setEmail(e.target.value)}
                     onFocus={() => setEmailFocused(true)}
                     onBlur={() => setEmailFocused(false)}
+                    autoFocus
                     autoComplete="email"
                   />
                 </div>
               </div>
 
-              <div className="form-group" style={{ marginBottom: 20 }}>
-                <label className="form-label" style={{ fontWeight: 700, fontSize: 13 }}>
-                  🔒 Password
-                </label>
+              <div className="form-group" style={{ marginBottom: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <label className="form-label" style={{ fontWeight: 700, fontSize: 13, margin: 0 }}>
+                    🔒 Password
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForgotEmail(email);
+                      setForgotStep(1);
+                      setAuthMode('forgot_password');
+                    }}
+                    style={{
+                      background: 'none', border: 'none', padding: 0,
+                      color: meta.color, fontSize: 12, fontWeight: 700,
+                      cursor: 'pointer', textDecoration: 'underline',
+                    }}
+                  >
+                    Forgot Password?
+                  </button>
+                </div>
                 <div style={{ position: 'relative' }}>
                   <div style={{
                     position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
@@ -408,28 +686,42 @@ export default function LoginPage() {
                     <Lock size={18} />
                   </div>
                   <input
-                    type="password"
+                    id="login-password-input"
+                    type={showPassword ? 'text' : 'password'}
                     className="form-input"
                     style={{
-                      paddingLeft: 44, fontSize: 15,
+                      paddingLeft: 44, paddingRight: 44, fontSize: 15,
                       borderColor: passFocused ? meta.color : undefined,
                       boxShadow: passFocused ? `0 0 0 3px ${meta.color}18` : undefined,
                     }}
-                    placeholder="••••••••"
+                    placeholder="Enter your password"
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                     onFocus={() => setPassFocused(true)}
                     onBlur={() => setPassFocused(false)}
                     autoComplete="current-password"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    style={{
+                      position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+                      background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer',
+                      padding: 4, display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    }}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
                 </div>
               </div>
 
               <button
+                id="login-password-submit-btn"
                 type="submit"
                 className="btn btn--primary btn--full btn--lg"
                 disabled={loading || !isEmailValid || !password}
                 style={{
+                  marginTop: 16,
                   background: (isEmailValid && password) ? meta.gradient : undefined,
                   fontSize: 15, fontWeight: 700,
                   borderRadius: 14,
@@ -438,149 +730,225 @@ export default function LoginPage() {
                 }}
               >
                 {loading
-                  ? <><div className="spinner spinner--sm" style={{ borderTopColor: '#fff' }} /> Logging in...</>
+                  ? <><div className="spinner spinner--sm" style={{ borderTopColor: '#fff' }} /> Logging In...</>
                   : <>Log In <ChevronRight size={18} /></>
                 }
               </button>
             </form>
           )}
 
-          {authMode === 'register' && (
-            <form onSubmit={handleRegister}>
-              <div className="form-group" style={{ marginBottom: 14 }}>
-                <label className="form-label" style={{ fontWeight: 700, fontSize: 13 }}>
-                  📧 Email Address
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <div style={{
-                    position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
-                    color: emailFocused ? meta.color : 'var(--text-muted)',
-                    pointerEvents: 'none', zIndex: 1, transition: 'color 0.2s',
-                  }}>
-                    <Mail size={18} />
+          {/* TAB 3: FORGOT PASSWORD FLOW */}
+          {authMode === 'forgot_password' && (
+            <div>
+              {forgotStep === 1 ? (
+                <form onSubmit={handleSendForgotOtp}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                    <KeyRound size={20} color={meta.color} />
+                    <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                      Verify Your Email
+                    </h3>
                   </div>
-                  <input
-                    type="email"
-                    className="form-input"
-                    style={{
-                      paddingLeft: 44, fontSize: 15,
-                      borderColor: emailFocused ? meta.color : undefined,
-                      boxShadow: emailFocused ? `0 0 0 3px ${meta.color}18` : undefined,
-                    }}
-                    placeholder="yourname@gmail.com"
-                    value={email}
-                    onChange={e => setEmail(e.target.value.trim())}
-                    onFocus={() => setEmailFocused(true)}
-                    onBlur={() => setEmailFocused(false)}
-                    autoComplete="email"
-                  />
-                </div>
-              </div>
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 18, lineHeight: 1.5 }}>
+                    Enter your email below. We'll send a 6-digit verification code to authenticate and reset your password.
+                  </p>
 
-              <div className="form-group" style={{ marginBottom: 14 }}>
-                <label className="form-label" style={{ fontWeight: 700, fontSize: 13 }}>
-                  🔒 Password
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <div style={{
-                    position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
-                    color: passFocused ? meta.color : 'var(--text-muted)',
-                    pointerEvents: 'none', zIndex: 1, transition: 'color 0.2s',
-                  }}>
-                    <Lock size={18} />
+                  <div className="form-group" style={{ marginBottom: 20 }}>
+                    <label className="form-label" style={{ fontWeight: 700, fontSize: 13 }}>
+                      📧 Registered Email
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <div style={{
+                        position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
+                        color: 'var(--text-muted)', pointerEvents: 'none', zIndex: 1
+                      }}>
+                        <Mail size={18} />
+                      </div>
+                      <input
+                        id="forgot-email-input"
+                        type="email"
+                        className="form-input"
+                        style={{ paddingLeft: 44, fontSize: 15 }}
+                        placeholder="yourname@gmail.com"
+                        value={forgotEmail}
+                        onChange={e => setForgotEmail(e.target.value)}
+                        autoFocus
+                        autoComplete="email"
+                      />
+                    </div>
                   </div>
-                  <input
-                    type="password"
-                    className="form-input"
-                    style={{
-                      paddingLeft: 44, fontSize: 15,
-                      borderColor: passFocused ? meta.color : undefined,
-                      boxShadow: passFocused ? `0 0 0 3px ${meta.color}18` : undefined,
-                    }}
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    onFocus={() => setPassFocused(true)}
-                    onBlur={() => setPassFocused(false)}
-                    autoComplete="new-password"
-                  />
-                </div>
-              </div>
 
-              <div className="form-group" style={{ marginBottom: 20 }}>
-                <label className="form-label" style={{ fontWeight: 700, fontSize: 13 }}>
-                  🔒 Confirm Password
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <div style={{
-                    position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
-                    color: confirmPassFocused ? meta.color : 'var(--text-muted)',
-                    pointerEvents: 'none', zIndex: 1, transition: 'color 0.2s',
-                  }}>
-                    <Lock size={18} />
+                  <button
+                    id="forgot-send-otp-btn"
+                    type="submit"
+                    className="btn btn--primary btn--full btn--lg"
+                    disabled={loading || !isForgotEmailValid}
+                    style={{
+                      background: isForgotEmailValid ? meta.gradient : undefined,
+                      fontSize: 15, fontWeight: 700, borderRadius: 14,
+                      boxShadow: isForgotEmailValid ? `0 6px 20px ${meta.color}40` : 'none',
+                    }}
+                  >
+                    {loading
+                      ? <><div className="spinner spinner--sm" style={{ borderTopColor: '#fff' }} /> Sending OTP...</>
+                      : <>Send Reset OTP <ChevronRight size={18} /></>
+                    }
+                  </button>
+
+                  <div style={{ textAlign: 'center', marginTop: 16 }}>
+                    <button
+                      type="button"
+                      onClick={() => setAuthMode('password_login')}
+                      style={{
+                        background: 'none', border: 'none', color: 'var(--text-muted)',
+                        fontSize: 13, fontWeight: 600, cursor: 'pointer'
+                      }}
+                    >
+                      ← Back to Password Login
+                    </button>
                   </div>
-                  <input
-                    type="password"
-                    className="form-input"
-                    style={{
-                      paddingLeft: 44, fontSize: 15,
-                      borderColor: confirmPassFocused ? meta.color : undefined,
-                      boxShadow: confirmPassFocused ? `0 0 0 3px ${meta.color}18` : undefined,
-                    }}
-                    placeholder="••••••••"
-                    value={confirmPassword}
-                    onChange={e => setConfirmPassword(e.target.value)}
-                    onFocus={() => setConfirmPassFocused(true)}
-                    onBlur={() => setConfirmPassFocused(false)}
-                    autoComplete="new-password"
-                  />
-                </div>
-              </div>
+                </form>
+              ) : (
+                <form onSubmit={handleResetPassword}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                    <Lock size={20} color={meta.color} />
+                    <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                      Create New Password
+                    </h3>
+                  </div>
+                  <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16 }}>
+                    Enter the code sent to <b>{forgotEmail}</b> and choose a new password.
+                  </p>
 
-              <button
-                type="submit"
-                className="btn btn--primary btn--full btn--lg"
-                disabled={loading || !isEmailValid || !password || password !== confirmPassword}
-                style={{
-                  background: (isEmailValid && password && password === confirmPassword) ? meta.gradient : undefined,
-                  fontSize: 15, fontWeight: 700,
-                  borderRadius: 14,
-                  transition: 'all 0.3s',
-                  boxShadow: (isEmailValid && password && password === confirmPassword) ? `0 6px 20px ${meta.color}40` : 'none',
-                }}
-              >
-                {loading
-                  ? <><div className="spinner spinner--sm" style={{ borderTopColor: '#fff' }} /> Registering...</>
-                  : <>Create Account & Continue <ChevronRight size={18} /></>
-                }
-              </button>
-            </form>
+                  <div className="form-group" style={{ marginBottom: 14 }}>
+                    <label className="form-label" style={{ fontWeight: 700, fontSize: 13 }}>
+                      🔢 6-Digit Verification Code
+                    </label>
+                    <input
+                      id="forgot-otp-input"
+                      type="text"
+                      className="form-input"
+                      style={{ fontSize: 18, letterSpacing: '4px', textAlign: 'center', fontWeight: 800 }}
+                      placeholder="123456"
+                      maxLength={6}
+                      value={forgotOtp}
+                      onChange={e => setForgotOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      autoFocus
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 14 }}>
+                    <label className="form-label" style={{ fontWeight: 700, fontSize: 13 }}>
+                      🔒 New Password
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        id="forgot-new-password"
+                        type={showNewPassword ? 'text' : 'password'}
+                        className="form-input"
+                        style={{ paddingRight: 44, fontSize: 15 }}
+                        placeholder="At least 6 characters"
+                        value={newPassword}
+                        onChange={e => setNewPassword(e.target.value)}
+                        autoComplete="new-password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPassword(!showNewPassword)}
+                        style={{
+                          position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+                          background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer',
+                          padding: 4, display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        }}
+                      >
+                        {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 20 }}>
+                    <label className="form-label" style={{ fontWeight: 700, fontSize: 13 }}>
+                      🔒 Confirm New Password
+                    </label>
+                    <input
+                      id="forgot-confirm-new-password"
+                      type={showNewPassword ? 'text' : 'password'}
+                      className="form-input"
+                      style={{ fontSize: 15 }}
+                      placeholder="Re-enter new password"
+                      value={confirmNewPassword}
+                      onChange={e => setConfirmNewPassword(e.target.value)}
+                      autoComplete="new-password"
+                    />
+                  </div>
+
+                  <button
+                    id="forgot-reset-submit-btn"
+                    type="submit"
+                    className="btn btn--primary btn--full btn--lg"
+                    disabled={loading || forgotOtp.length !== 6 || newPassword.length < 6 || newPassword !== confirmNewPassword}
+                    style={{
+                      background: (forgotOtp.length === 6 && newPassword.length >= 6 && newPassword === confirmNewPassword)
+                        ? meta.gradient : undefined,
+                      fontSize: 15, fontWeight: 700, borderRadius: 14,
+                    }}
+                  >
+                    {loading
+                      ? <><div className="spinner spinner--sm" style={{ borderTopColor: '#fff' }} /> Updating Password...</>
+                      : <>Reset Password & Log In <ChevronRight size={18} /></>
+                    }
+                  </button>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16 }}>
+                    <button
+                      type="button"
+                      onClick={() => setForgotStep(1)}
+                      style={{
+                        background: 'none', border: 'none', color: meta.color,
+                        fontSize: 12, fontWeight: 600, cursor: 'pointer'
+                      }}
+                    >
+                      Resend Code
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAuthMode('password_login')}
+                      style={{
+                        background: 'none', border: 'none', color: 'var(--text-muted)',
+                        fontSize: 12, fontWeight: 600, cursor: 'pointer'
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
           )}
         </div>
 
-        {/* Toggle between Login and Register */}
-        <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          {authMode === 'register' ? (
+        {/* Bottom Switch between OTP & Password login */}
+        <div style={{ textAlign: 'center', marginBottom: 20 }}>
+          {authMode === 'password_login' ? (
             <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-              Already have an account?{' '}
+              Prefer instant code?{' '}
               <span
                 onClick={() => setAuthMode('otp_login')}
                 style={{ color: meta.color, fontWeight: 700, cursor: 'pointer' }}
               >
-                Log In
+                Sign in with OTP
               </span>
             </p>
-          ) : (
+          ) : authMode === 'otp_login' ? (
             <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-              New to QuickFix?{' '}
+              Already set a password?{' '}
               <span
-                onClick={() => setAuthMode('register')}
+                onClick={() => setAuthMode('password_login')}
                 style={{ color: meta.color, fontWeight: 700, cursor: 'pointer' }}
               >
-                Create Account
+                Sign in with Password
               </span>
             </p>
-          )}
+          ) : null}
         </div>
 
         {/* Location status card */}
@@ -630,13 +998,13 @@ export default function LoginPage() {
           )}
         </div>
 
-        {/* Security + demo info */}
-        <div style={{ display: 'flex', alignItems: 'center', justifySelf: 'center', justifyContent: 'center', gap: 6, marginBottom: 20 }}>
+        {/* Security badge */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 20 }}>
           <Shield size={14} color="var(--text-muted)" />
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Secure authentication standard</span>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>256-bit encrypted authentication</span>
         </div>
 
-        {/* API IP Config settings row */}
+        {/* Developer API IP Config */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20, alignItems: 'center' }}>
           <button
             onClick={() => setShowApiSettings(!showApiSettings)}
@@ -657,7 +1025,7 @@ export default function LoginPage() {
                   type="text"
                   className="form-input"
                   style={{ flex: 1, padding: '6px 10px', fontSize: 13 }}
-                  placeholder="e.g. 192.168.1.5"
+                  placeholder="https://quickfix-ebly.onrender.com"
                   value={apiIp}
                   onChange={e => setApiIp(e.target.value.trim())}
                 />
@@ -665,11 +1033,11 @@ export default function LoginPage() {
                   onClick={() => {
                     if (apiIp) {
                       localStorage.setItem('quickfix_custom_api_ip', apiIp);
-                      toast.success('IP Saved! Restarting web frame...');
+                      toast.success('Backend Saved! Restarting web frame...');
                       setTimeout(() => window.location.reload(), 1000);
                     } else {
                       localStorage.removeItem('quickfix_custom_api_ip');
-                      toast.success('Cleared! Resets to localhost.');
+                      toast.success('Cleared! Resets to Render Cloud backend.');
                       setTimeout(() => window.location.reload(), 1000);
                     }
                   }}
@@ -680,29 +1048,27 @@ export default function LoginPage() {
                 </button>
               </div>
               <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
-                Leave empty for localhost. Rebuild & sync after update.
+                Default: https://quickfix-ebly.onrender.com
               </div>
             </div>
           )}
         </div>
 
-        {!import.meta.env.VITE_SUPABASE_URL?.startsWith('https://') && (
-          <div style={{
-            padding: '14px 16px',
-            background: `${meta.color}08`,
-            border: `1px solid ${meta.color}20`,
-            borderRadius: 14,
-            textAlign: 'center',
-          }}>
-            <p style={{ fontWeight: 700, color: meta.color, marginBottom: 4, fontSize: 13 }}>
-              🎭 Demo Mode Active
-            </p>
-            <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-              Enter any email & password to test. <br />
-              For OTP: use OTP Login → use code <b style={{ color: 'var(--text-primary)' }}>123456</b>.
-            </p>
-          </div>
-        )}
+        <div style={{
+          padding: '14px 16px',
+          background: `${meta.color}08`,
+          border: `1px solid ${meta.color}20`,
+          borderRadius: 14,
+          textAlign: 'center',
+        }}>
+          <p style={{ fontWeight: 700, color: meta.color, marginBottom: 4, fontSize: 13 }}>
+            💡 Quick Tip
+          </p>
+          <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+            Use <b>Email OTP</b> to verify your email and set a password on signup.<br />
+            For local/demo testing, code <b style={{ color: 'var(--text-primary)' }}>123456</b> works for any address!
+          </p>
+        </div>
       </div>
 
       <p style={{ textAlign: 'center', padding: '0 24px 24px', color: 'var(--text-muted)', fontSize: 11 }}>

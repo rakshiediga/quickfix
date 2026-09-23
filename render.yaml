@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: quickfix-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    plan: free
+
+    envVars:
+      # ── Required: Set these in Render Dashboard → Environment ──────────────────
+      # DATABASE_URL   → Use Render's free PostgreSQL add-on URL (auto-injected)
+      #                  or leave as sqlite:///./quickfix.db for SQLite fallback
+      - key: DATABASE_URL
+        value: sqlite:///./quickfix.db          # SQLite fallback for free tier testing
+
+      - key: ENVIRONMENT
+        value: production
+
+      - key: UPLOAD_DIR
+        value: uploads
+
+      # SERVER_BASE_URL → Set to your Render service URL after first deploy
+      # e.g.  https://quickfix-backend.onrender.com
+      - key: SERVER_BASE_URL
+        value: ""                               # Fill after first deploy
+
+      # ── Secrets: Enter these manually in Render Dashboard ─────────────────────
+      # JWT_SECRET          → A strong random secret string
+      # SMTP_HOST           → e.g. smtp.gmail.com
+      # SMTP_PORT           → 587
+      # SMTP_USER           → your email address
+      # SMTP_PASSWORD       → your email app password
+      # SMTP_FROM           → noreply@yourdomain.com
+      # CORS_ORIGINS        → comma-separated allowed origins (optional)
